@@ -41,21 +41,27 @@ renders are derived from it.*
 
 With an exact map, a known start and a route the map covers, the 3D LiDAR
 holds the robot alone (the renders above are LiDAR from start to goal).
-The three renders below take one of those away each. Beside the real
-localizer runs one on the same LiDAR and wheels without GNSS: the pale
-robot, with a red line to where the robot is.
+The renders below take one of those away. Beside the real localizer runs
+one on the same LiDAR and wheels without GNSS; the top-down map in the
+corner shows the robot's track in yellow and that localizer's in red.
 
-| Case (Shibuya) | With GNSS: RMSE (max) | Without GNSS: RMSE (max) |
+| Case | With GNSS: RMSE (max) | Without GNSS: RMSE (max) |
 |---|---|---|
-| Switched on 25 m from where it thinks | 0.60 m (25 m, the first second) | 61 m (109 m) |
-| A 140 m spur not in the LiDAR map | 0.10 m (1.6 m) | 1.06 m (5.4 m) |
-| The spur rebuilt 2.5 m from the map | 0.13 m (1.4 m) | 1.09 m (2.5 m) |
+| Open ground: 500 m of fields between two rows of houses (synthetic) | 0.00 m (0.15 m) | 87 m (234 m) |
+| Shibuya, switched on 25 m from where it thinks | 0.60 m (25 m, the first second) | 61 m (109 m) |
+| Shinjuku Central Park | 0.17 m (3.0 m) | 2.1 m (10.5 m) |
+| Shibuya, a 140 m spur not in the LiDAR map | 0.10 m (1.6 m) | 1.06 m (5.4 m) |
+| Shibuya, the spur rebuilt 2.5 m from the map | 0.13 m (1.4 m) | 1.09 m (2.5 m) |
 
-![Unknown start: the red line runs from the robot to the pale robot of the localizer without GNSS, 19 m away](docs/media/rne-plateau-shibuya-unknown-start.gif)
+Where buildings stay within the LiDAR's 60 m, the map and the wheels hold
+the robot within metres without GNSS, and in Shibuya's canyons RTK fixes
+too rarely to carry it far without the map. GNSS carries the robot where
+the sky is open and the map has nothing to hold, and tells it where it is
+at the start.
 
-![A spur missing from the LiDAR map: GNSS takes charge there; the localizer without GNSS drifts](docs/media/rne-plateau-shibuya-off-map.gif)
+![Open ground: GNSS takes charge across 500 m of fields where the LiDAR sees only the ground; the localizer without GNSS drifts 230 m off](docs/media/rne-suburb.gif)
 
-![The spur rebuilt 2.5 m from the map: RTK shows the map wrong and takes charge; the localizer without GNSS walks the old facades](docs/media/rne-plateau-shibuya-construction.gif)
+![Unknown start in Shibuya: the localizer without GNSS never finds itself, up to 109 m off](docs/media/rne-plateau-shibuya-unknown-start.gif)
 
 ## The comparison
 
