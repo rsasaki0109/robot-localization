@@ -41,21 +41,9 @@ renders are derived from it.*
 
 The rest of this repository compares the ways of combining GNSS and a LiDAR
 map in a small simulated district where every method sees the same drive
-and the same noise:
-
-![Six localizers driving the same route through a crowded street canyon](docs/media/methods_crowd.gif)
-
-*Six localizers on the same drive through a crowded district (600 people).
-Each panel follows the robot: buildings shaded by height, people (brown), the
-LiDAR scan (cyan), the latest GNSS fix (green RTK fixed, yellow float, red
-single), the true track (black) and the estimate's, coloured by what it rests
-on. The strip under each panel is the run's source timeline: every colour
-change is a change of source. The switching arbiter trades GNSS and LiDAR back
-and forth; the LiDAR-primary arbiter takes LiDAR once and keeps it.*
+and the same noise.
 
 ### The district
-
-![The district from above: building heights and the GNSS solution along the route](docs/media/overview.gif)
 
 A 400 m x 300 m business district in miniature (`city`): low-rise blocks in
 the west, 90–220 m towers in the middle with a 12 m alley between them,
@@ -255,15 +243,6 @@ ray-traced GNSS and a 3D LiDAR (example 152): `rne_slam::HybridLocalizer`
 switches, with `HybridLocalizerConfig::lidar_keeps_charge` it is LiDAR
 primary, and `FactorGraphLocalizer` is the factor graph.
 
-| | |
-|:---:|:---:|
-| ![unknown start](docs/media/methods_unknown_start.gif) | ![off the map](docs/media/methods_off_the_map.gif) |
-| unknown start: everything with GNSS finds itself at the first RTK fix; the LiDAR filter never does | off the map (purple: the map's footprints; the south-west blocks have none) |
-| ![long straight road](docs/media/methods_long_straight_road.gif) | ![construction](docs/media/methods_construction.gif) |
-| long straight road: the LiDAR filter slides along the road with the wheels | construction: the rebuilt block stands 2.5 m from its outline in the map |
-| ![clear](docs/media/methods_clear.gif) | ![outdated map](docs/media/methods_outdated_map.gif) |
-| clear | outdated map |
-
 ## Components (submodules)
 
 The methods here take position fixes and scan matches; producing them on a
@@ -291,7 +270,7 @@ build systems (CMake, colcon, Cargo workspaces). Clone without
 ```bash
 cargo run --release --example compare                     # the table, 3 seeds
 cargo run --release --example compare -- 10               # 10 seeds
-cargo run --release --features render --example gallery   # GIFs -> out/
+cargo run --release --features render --example gallery   # top-down GIFs of every method -> out/
 ```
 
 ```rust
