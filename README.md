@@ -37,6 +37,26 @@ a clear day. Data: 3D City Model (Tokyo 23 wards) 2020, Project PLATEAU /
 MLIT, used under the PLATEAU site policy (compatible with CC BY 4.0); these
 renders are derived from it.*
 
+### Where GNSS is needed, in 3D
+
+With an exact map, a known start and a route the map covers, the 3D LiDAR
+holds the robot alone (the renders above are LiDAR from start to goal).
+The three renders below take one of those away each. Beside the real
+localizer runs one on the same LiDAR and wheels without GNSS: the pale
+robot, with a red line to where the robot is.
+
+| Case (Shibuya) | With GNSS: RMSE (max) | Without GNSS: RMSE (max) |
+|---|---|---|
+| Switched on 25 m from where it thinks | 0.60 m (25 m, the first second) | 61 m (109 m) |
+| A 140 m spur not in the LiDAR map | 0.10 m (1.6 m) | 1.06 m (5.4 m) |
+| The spur rebuilt 2.5 m from the map | 0.13 m (1.4 m) | 1.09 m (2.5 m) |
+
+![Unknown start: the red line runs from the robot to the pale robot of the localizer without GNSS, 19 m away](docs/media/rne-plateau-shibuya-unknown-start.gif)
+
+![A spur missing from the LiDAR map: GNSS takes charge there; the localizer without GNSS drifts](docs/media/rne-plateau-shibuya-off-map.gif)
+
+![The spur rebuilt 2.5 m from the map: RTK shows the map wrong and takes charge; the localizer without GNSS walks the old facades](docs/media/rne-plateau-shibuya-construction.gif)
+
 ## The comparison
 
 The rest of this repository compares the ways of combining GNSS and a LiDAR
