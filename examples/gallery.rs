@@ -7,7 +7,8 @@
 //! ```
 //!
 //! Each panel follows the robot (north up, 60 m across): buildings shaded
-//! by height, people, the LiDAR scan (cyan), the latest GNSS fix (a cross:
+//! by height (the LiDAR map's footprints in purple where the map differs
+//! from the world), people, the LiDAR scan (cyan), the latest GNSS fix (a cross:
 //! green RTK fixed, yellow float, red single), the true track (black) and
 //! the estimate's, coloured by what it rested on. The strip under each panel
 //! is the whole run's source timeline so far: every colour change is a
@@ -17,7 +18,7 @@ use robo_localization::city::{Building, City};
 use robo_localization::geometry::{Pose2, Vec2};
 use robo_localization::gnss::{FixKind, Receiver};
 use robo_localization::methods::Source;
-use robo_localization::sim::{all_methods, drive, run, start_pose, Condition, Report};
+use robo_localization::sim::{all_methods, drive, run, start_pose, Condition, MapState, Report};
 use robo_planning::geometry as pg;
 use robo_planning::render::{colors, Canvas, GifWriter, Rgba, View};
 
@@ -165,13 +166,14 @@ fn panel(scene: &Scene, report: &Report, k: usize) -> Canvas {
     canvas
 }
 
-fn condition_gif(city: &City, condition: Condition, out: &std::path::Path) -> std::io::Result<()> {
-    let start = start_pose(city);
-    let reports: Vec<Report> = all_methods(start)
+fn condition_gif(condition: Condition, out: &std::path::Path) -> std::io::Result<()> {
+    let city = &condition.city();
+    let reports: Vec<Report> = all_methods(condition.start(city, 0))
         .into_iter()
         .map(|mut m| run(m.as_mut(), city, condition, 0, true))
         .collect();
-    let map = condition.outdated_map.then(|| city.outdated_map(1));
+    // A map that differs from the world is drawn as purple outlines.
+    let map = (condition.map != MapState::Exact).then(|| condition.map(city));
     let scene = Scene {
         city,
         map: map.as_deref(),
@@ -181,7 +183,7 @@ fn condition_gif(city: &City, condition: Condition, out: &std::path::Path) -> st
     for k in (0..scene.total).step_by(STRIDE) {
         let mut c = Canvas::new(WIDTH, HEIGHT);
         let t = reports[0].frames[k].t;
-        let title = format!("GNSS / LiDAR localization, {}  t = {:3.0} s", condition.name, t);
+        let title = format!("{}  t = {:3.0} s", condition.name, t);
         c.text(12.0, 10.0, &title, 2.0, colors::INK);
         let mut lx = WIDTH as f32 - 12.0;
         for s in [Source::DeadReckoning, Source::Both, Source::Lidar, Source::Gnss] {
@@ -273,7 +275,7 @@ fn main() -> std::io::Result<()> {
         }
         let out = dir.join(format!("methods_{slug}.gif"));
         println!("{}:", condition.name);
-        condition_gif(&city, condition, &out)?;
+        condition_gif(condition, &out)?;
         println!("wrote {}", out.display());
     }
     Ok(())

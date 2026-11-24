@@ -7,7 +7,7 @@
 //! fix that disagrees with the scans and the wheels loses its weight instead
 //! of being gated by one threshold.
 
-use super::{gnss_variance, lidar_covariance, Localizer, Source, MIN_INLIERS};
+use super::{gnss_variance, lidar_covariance, Localizer, Source, Start, LIDAR_START_SIGMA_M, MIN_INLIERS};
 use crate::ekf::residual;
 use crate::geometry::{normalize_angle, Pose2, Vec2};
 use crate::gnss::{Fix, FixKind};
@@ -59,11 +59,24 @@ pub struct FactorGraph {
     last_lidar_s: f64,
     /// When an RTK fixed fix last carried weight.
     last_fixed_s: f64,
+    /// Sigmas of the prior on the oldest node: the start's until GNSS has
+    /// anchored the graph, then [`PRIOR_SIGMA_M`] and [`PRIOR_SIGMA_RAD`].
+    prior_sigma: [f64; 3],
+    /// Whether the graph knows where it is: from the start when the start
+    /// is known, otherwise once an RTK fixed fix agrees with it. Until then
+    /// GNSS factors are plain least squares (a robust kernel would discount
+    /// the very fixes that place the robot) and no scan is matched.
+    anchored: bool,
 }
 
 impl FactorGraph {
     /// Starts at `start`.
-    pub fn new(start: Pose2) -> Self {
+    pub fn new(start: impl Into<Start>) -> Self {
+        let Start {
+            pose: start,
+            sigma_m,
+            sigma_rad,
+        } = start.into();
         let first = Node {
             pose: start,
             odom: Pose2::default(),
@@ -81,6 +94,12 @@ impl FactorGraph {
             last_gnss_s: 0.0,
             last_lidar_s: 0.0,
             last_fixed_s: f64::NEG_INFINITY,
+            prior_sigma: [
+                sigma_m.max(PRIOR_SIGMA_M),
+                sigma_m.max(PRIOR_SIGMA_M),
+                sigma_rad.max(PRIOR_SIGMA_RAD),
+            ],
+            anchored: sigma_m <= LIDAR_START_SIGMA_M,
         }
     }
 
@@ -101,6 +120,9 @@ impl FactorGraph {
         while self.nodes.len() > WINDOW {
             self.nodes.pop_front();
             self.prior = self.nodes[0].pose;
+            if self.anchored {
+                self.prior_sigma = [PRIOR_SIGMA_M, PRIOR_SIGMA_M, PRIOR_SIGMA_RAD];
+            }
         }
     }
 
@@ -138,7 +160,7 @@ impl FactorGraph {
             };
             // Prior on the oldest node.
             let r0 = residual(self.nodes[0].pose, self.prior);
-            let omega0 = diag(&[PRIOR_SIGMA_M, PRIOR_SIGMA_M, PRIOR_SIGMA_RAD]);
+            let omega0 = diag(&self.prior_sigma);
             add(&[(0, identity_rows())], &omega0, &r0);
             for k in 0..n {
                 let node = &self.nodes[k];
@@ -163,7 +185,11 @@ impl FactorGraph {
                 if let Some((z, var)) = node.gnss {
                     let r = [node.pose.x - z.x, node.pose.y - z.y];
                     let e2 = (r[0] * r[0] + r[1] * r[1]) / var;
-                    let w = 1.0 / (1.0 + e2 / (CAUCHY_C * CAUCHY_C));
+                    let w = if self.anchored {
+                        1.0 / (1.0 + e2 / (CAUCHY_C * CAUCHY_C))
+                    } else {
+                        1.0
+                    };
                     if k == n - 1 {
                         w_gnss = w;
                     }
@@ -245,11 +271,18 @@ impl Localizer for FactorGraph {
         // window. RTK fixed fixes always join, under the Cauchy kernel.
         let var = gnss_variance(fix);
         let node = self.nodes.back_mut().expect("a node");
-        if fix.kind != FixKind::Fixed && node.pose.pos().dist(fix.pos) > 3.0 * var.sqrt() {
+        if self.anchored && fix.kind != FixKind::Fixed && node.pose.pos().dist(fix.pos) > 3.0 * var.sqrt() {
             return;
         }
         node.gnss = Some((fix.pos, var));
-        if self.solve().0 > 0.3 {
+        let weight = self.solve().0;
+        if !self.anchored && fix.kind == FixKind::Fixed {
+            let node = self.nodes.back().expect("a node");
+            if node.pose.pos().dist(fix.pos) < 0.3 && self.nodes.len() > 5 {
+                self.anchored = true;
+            }
+        }
+        if weight > 0.3 {
             self.last_gnss_s = t;
             if fix.kind == FixKind::Fixed {
                 self.last_fixed_s = t;
@@ -260,7 +293,7 @@ impl Localizer for FactorGraph {
     fn lidar(&mut self, m: Option<&ScanMatch>, t: f64) {
         self.add_node();
         let held = t - self.last_fixed_s <= RTK_HOLD_S;
-        if let Some(m) = m.filter(|m| m.inlier_fraction >= MIN_INLIERS) {
+        if let Some(m) = m.filter(|m| self.anchored && m.inlier_fraction >= MIN_INLIERS) {
             let node = self.nodes.back_mut().expect("a node");
             let slid = held && m.pose.pos().dist(node.pose.pos()) > RTK_HOLD_M;
             if let (false, Some(info)) = (slid, inverse3(&lidar_covariance(m))) {
@@ -292,6 +325,43 @@ impl Localizer for FactorGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unknown_start_is_anchored_by_rtk_and_only_then_uses_scans() {
+        // Starts 25 m off with a 30 m sigma; the truth drives along x.
+        let start = Start {
+            pose: Pose2::new(25.0, 0.0, 0.0),
+            sigma_m: 30.0,
+            sigma_rad: 0.2,
+        };
+        let mut fg = FactorGraph::new(start);
+        let tight = [[1e-4, 0.0, 0.0], [0.0, 1e-4, 0.0], [0.0, 0.0, 1e-6]];
+        for k in 1..=40 {
+            for _ in 0..4 {
+                fg.predict(0.05, 1.0, 0.0);
+            }
+            let x = k as f64 * 0.2;
+            let t = k as f64 * 0.2;
+            // A scan matched from the wrong estimate fits the wrong place.
+            let wrong = ScanMatch {
+                pose: Pose2::new(x + 25.0, 0.0, 0.0),
+                covariance: tight,
+                inlier_fraction: 0.9,
+            };
+            fg.lidar(Some(&wrong), t);
+            if k % 5 == 0 {
+                let fix = Fix {
+                    pos: Vec2::new(x, 0.0),
+                    std_m: 0.02,
+                    kind: FixKind::Fixed,
+                    satellites: 12,
+                };
+                fg.gnss(Some(&fix), t);
+            }
+        }
+        assert!(fg.anchored);
+        assert!(fg.pose().x < 9.0, "{:?}", fg.pose());
+    }
 
     #[test]
     fn odometry_chain_reproduces_dead_reckoning_without_measurements() {

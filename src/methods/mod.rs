@@ -21,6 +21,40 @@ use crate::geometry::Pose2;
 use crate::gnss::{Fix, FixKind};
 use crate::lidar::ScanMatch;
 
+/// Where a localizer starts and how sure it is.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Start {
+    /// Initial estimate.
+    pub pose: Pose2,
+    /// Its per-axis position sigma, metres.
+    pub sigma_m: f64,
+    /// Its heading sigma, radians.
+    pub sigma_rad: f64,
+}
+
+impl Start {
+    /// A start known to a decimetre (placed by hand, or where the last run
+    /// ended).
+    pub fn known(pose: Pose2) -> Self {
+        Self {
+            pose,
+            sigma_m: 0.1,
+            sigma_rad: 0.02,
+        }
+    }
+}
+
+impl From<Pose2> for Start {
+    fn from(pose: Pose2) -> Self {
+        Self::known(pose)
+    }
+}
+
+/// A LiDAR match only starts tracking (or relocalizes) while the estimate's
+/// horizontal sigma is below this, metres: the matcher only converges from
+/// nearby, and from farther away a street looks like the next one.
+pub const LIDAR_START_SIGMA_M: f64 = 2.0;
+
 /// What the estimate rests on at the moment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Source {

@@ -1,6 +1,8 @@
 //! Single-sensor EKFs and the loosely coupled EKF that fuses both.
 
-use super::{gnss_variance, lidar_covariance, Localizer, Source, GATE_2DOF, GATE_3DOF, MIN_INLIERS};
+use super::{
+    gnss_variance, lidar_covariance, Localizer, Source, Start, GATE_2DOF, GATE_3DOF, LIDAR_START_SIGMA_M, MIN_INLIERS,
+};
 use crate::ekf::Ekf;
 use crate::geometry::{Pose2, Vec2};
 use crate::gnss::{Fix, FixKind};
@@ -67,6 +69,11 @@ pub(super) fn fuse_gnss(ekf: &mut Ekf, fix: &Fix, rejected: &mut RejectedRun, lo
     false
 }
 
+/// The filter at a start.
+pub(super) fn start_ekf(start: Start) -> Ekf {
+    Ekf::new(start.pose, start.sigma_m, start.sigma_rad)
+}
+
 /// Gate for a match while LiDAR has not been fused for a while (the
 /// estimate has drifted and its covariance may not say how far).
 pub(super) const RELOCALIZE_GATE: f64 = 60.0;
@@ -74,7 +81,8 @@ pub(super) const RELOCALIZE_GATE: f64 = 60.0;
 /// Shared LiDAR handling: gate (wider when `lost`) and fuse. Returns whether
 /// the match was fused.
 pub(super) fn fuse_lidar(ekf: &mut Ekf, m: &ScanMatch, lost: bool) -> bool {
-    if m.inlier_fraction < MIN_INLIERS {
+    // Too uncertain an estimate: the matcher may lock onto the wrong street.
+    if m.inlier_fraction < MIN_INLIERS || ekf.horizontal_sigma_m() > LIDAR_START_SIGMA_M {
         return false;
     }
     let r = lidar_covariance(m);
@@ -96,9 +104,9 @@ pub struct GnssEkf {
 
 impl GnssEkf {
     /// Starts at `start`.
-    pub fn new(start: Pose2) -> Self {
+    pub fn new(start: impl Into<Start>) -> Self {
         Self {
-            ekf: Ekf::new(start, 0.1, 0.02),
+            ekf: start_ekf(start.into()),
             rejected_fixed: RejectedRun::default(),
             last_fused_s: 0.0,
             t: 0.0,
@@ -149,9 +157,9 @@ pub struct LidarEkf {
 
 impl LidarEkf {
     /// Starts at `start`.
-    pub fn new(start: Pose2) -> Self {
+    pub fn new(start: impl Into<Start>) -> Self {
         Self {
-            ekf: Ekf::new(start, 0.1, 0.02),
+            ekf: start_ekf(start.into()),
             last_fused_s: 0.0,
             t: 0.0,
         }
@@ -200,9 +208,9 @@ pub struct LooseEkf {
 
 impl LooseEkf {
     /// Starts at `start`.
-    pub fn new(start: Pose2) -> Self {
+    pub fn new(start: impl Into<Start>) -> Self {
         Self {
-            ekf: Ekf::new(start, 0.1, 0.02),
+            ekf: start_ekf(start.into()),
             rejected_fixed: RejectedRun::default(),
             last_gnss_s: 0.0,
             last_lidar_s: 0.0,
@@ -248,5 +256,30 @@ impl Localizer for LooseEkf {
             (false, true) => Source::Lidar,
             (false, false) => Source::DeadReckoning,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lidar_does_not_start_from_an_uncertain_estimate() {
+        let m = ScanMatch {
+            pose: Pose2::new(3.0, 0.0, 0.0),
+            covariance: [[1e-3, 0.0, 0.0], [0.0, 1e-3, 0.0], [0.0, 0.0, 1e-5]],
+            inlier_fraction: 0.9,
+        };
+        let lost = Start {
+            pose: Pose2::new(0.0, 0.0, 0.0),
+            sigma_m: 30.0,
+            sigma_rad: 0.2,
+        };
+        let mut uncertain = LidarEkf::new(lost);
+        uncertain.lidar(Some(&m), 0.0);
+        assert_eq!(uncertain.pose().x, 0.0);
+        let mut known = LidarEkf::new(Start { sigma_m: 1.0, ..lost });
+        known.lidar(Some(&m), 0.0);
+        assert!(known.pose().x > 2.5, "{:?}", known.pose());
     }
 }

@@ -10,8 +10,8 @@
 //! corrections instead of taking over. GNSS is in charge only where the map
 //! cannot place the robot.
 
-use super::filters::{fuse_gnss as gnss_into, fuse_lidar as lidar_into, RejectedRun, RELOCALIZE_GATE};
-use super::{lidar_covariance, Localizer, Source, GATE_2DOF, GATE_3DOF, MIN_INLIERS};
+use super::filters::{fuse_gnss as gnss_into, fuse_lidar as lidar_into, start_ekf, RejectedRun, RELOCALIZE_GATE};
+use super::{lidar_covariance, Localizer, Source, Start, GATE_2DOF, GATE_3DOF, LIDAR_START_SIGMA_M, MIN_INLIERS};
 use crate::ekf::Ekf;
 use crate::geometry::Pose2;
 use crate::gnss::{Fix, FixKind};
@@ -48,10 +48,10 @@ pub struct Arbiter {
 
 impl Arbiter {
     /// Starts at `start` with GNSS in charge.
-    pub fn new(start: Pose2, policy: Policy) -> Self {
+    pub fn new(start: impl Into<Start>, policy: Policy) -> Self {
         Self {
             policy,
-            ekf: Ekf::new(start, 0.1, 0.02),
+            ekf: start_ekf(start.into()),
             mode: Source::Gnss,
             bad_gnss: 0,
             good_fixed: 0,
@@ -119,6 +119,8 @@ impl Localizer for Arbiter {
 
     fn lidar(&mut self, m: Option<&ScanMatch>, _: f64) {
         let usable = m.filter(|m| m.inlier_fraction >= MIN_INLIERS);
+        // LiDAR starts or relocalizes only from a fairly certain estimate.
+        let can_start = self.ekf.horizontal_sigma_m() <= LIDAR_START_SIGMA_M;
         match self.mode {
             Source::Lidar => {
                 let fused = usable.is_some_and(|m| lidar_into(&mut self.ekf, m, false));
@@ -129,7 +131,7 @@ impl Localizer for Arbiter {
                 }
             }
             Source::DeadReckoning => {
-                if let Some(m) = usable {
+                if let Some(m) = usable.filter(|_| can_start) {
                     let r = lidar_covariance(m);
                     if self.ekf.pose_d2(m.pose, &r) <= RELOCALIZE_GATE {
                         self.ekf.update_pose(m.pose, &r);
@@ -140,7 +142,7 @@ impl Localizer for Arbiter {
                 }
             }
             Source::Gnss if self.policy == Policy::LidarPrimary => {
-                if let Some(m) = usable {
+                if let Some(m) = usable.filter(|_| can_start) {
                     let r = lidar_covariance(m);
                     if self.ekf.pose_d2(m.pose, &r) <= GATE_3DOF {
                         self.ekf.update_pose(m.pose, &r);

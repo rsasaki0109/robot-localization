@@ -168,6 +168,65 @@ impl City {
         map
     }
 
+    /// A long straight road: two 600 m lanes either side of a median
+    /// barrier, between noise barriers, looped at the ends. The walls are
+    /// low (the sky is open) and straight: the LiDAR pins the robot across
+    /// the road but not along it, except near the ends.
+    pub fn boulevard() -> Self {
+        let wall = |x0: f64, y0: f64, x1: f64, y1: f64, h: f64| Building {
+            min: Vec2::new(x0, y0),
+            max: Vec2::new(x1, y1),
+            height_m: h,
+        };
+        let buildings = vec![
+            wall(-10.0, -1.0, 650.0, 0.0, 6.0),
+            wall(-10.0, 44.0, 650.0, 45.0, 6.0),
+            wall(40.0, 21.7, 600.0, 22.3, 1.2),
+            wall(-11.0, -1.0, -10.0, 45.0, 6.0),
+            wall(650.0, -1.0, 651.0, 45.0, 6.0),
+        ];
+        let route = [(20.0, 11.0), (620.0, 11.0), (620.0, 33.0), (20.0, 33.0)]
+            .iter()
+            .map(|&(x, y)| Vec2::new(x, y))
+            .collect();
+        Self {
+            buildings,
+            route,
+            min: Vec2::new(-20.0, -10.0),
+            max: Vec2::new(660.0, 55.0),
+        }
+    }
+
+    /// The map without the buildings in a rectangle (`lo`, `hi`): a part of
+    /// the city nobody has mapped yet.
+    pub fn map_without(&self, lo: Vec2, hi: Vec2) -> Vec<Building> {
+        self.buildings
+            .iter()
+            .filter(|b| b.max.x < lo.x || b.min.x > hi.x || b.max.y < lo.y || b.min.y > hi.y)
+            .copied()
+            .collect()
+    }
+
+    /// The map from before a block was rebuilt: the buildings in a
+    /// rectangle (`lo`, `hi`) stand `shift` from where the map has them.
+    pub fn rebuilt_map(&self, lo: Vec2, hi: Vec2, shift: Vec2) -> Vec<Building> {
+        self.buildings
+            .iter()
+            .map(|&b| {
+                let inside = b.min.x >= lo.x && b.max.x <= hi.x && b.min.y >= lo.y && b.max.y <= hi.y;
+                if inside {
+                    Building {
+                        min: b.min - shift,
+                        max: b.max - shift,
+                        ..b
+                    }
+                } else {
+                    b
+                }
+            })
+            .collect()
+    }
+
     /// Footprint edges of every building: the LiDAR's prior map.
     pub fn map_segments(&self) -> Vec<(Vec2, Vec2)> {
         self.buildings.iter().flat_map(|b| b.edges()).collect()

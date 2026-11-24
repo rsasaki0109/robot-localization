@@ -15,7 +15,7 @@ pub struct Ekf {
 
 /// Odometry noise: speed sigma = `SPEED_SIGMA_M_S + SPEED_SIGMA_REL * |v|`.
 const SPEED_SIGMA_M_S: f64 = 0.02;
-const SPEED_SIGMA_REL: f64 = 0.03;
+const SPEED_SIGMA_REL: f64 = 0.25;
 /// Yaw-rate sigma, rad/s.
 const YAW_RATE_SIGMA: f64 = 0.01;
 
