@@ -13,6 +13,34 @@ RTK で補正する・EKF でまとめて融合する・ファクターグラフ
 LiDAR SLAM、LiDAR 地図照合、Visual localization の各スタックはサブモジュールで
 入っています。
 
+![RobotNativeEngine simulation: a robot localizing with GNSS and a 3D LiDAR map at Shibuya's scramble crossing at rush hour in the rain, among PLATEAU's photo-textured buildings; green rays are line-of-sight satellites, red NLOS reflections off the facades, purple diffraction over roof edges; cyan points are the 3D LiDAR's returns](docs/media/rne-plateau-shibuya.gif)
+
+*The methods at full scale in
+[RobotNativeEngine](https://github.com/rsasaki0109/RobotNativeEngine)
+(example 152): a robot crosses Shibuya's scramble crossing and walks up
+Koen-dori at rush hour in the rain, among PLATEAU's photo-textured LOD2
+buildings, with crowds, traffic and a 3D LiDAR. Every GNSS signal is ray
+traced through the city: green rays reach the antenna in line of sight, red
+ones only by reflection off a facade (drawn through their reflection
+points), purple ones by diffraction over a roof edge. Cyan points are the
+LiDAR's returns. The trail is blue while GNSS (GPS, Galileo, QZSS and BeiDou
+with RTK) localizes the robot and magenta while the LiDAR map does: the
+LiDAR-primary arbiter below takes LiDAR once and keeps it, with RTK fixes as
+corrections.*
+
+![The same in Nishi-Shinjuku, among the skyscrapers west of the station](docs/media/rne-plateau-shinjuku.gif)
+
+*The same in Nishi-Shinjuku, among the skyscrapers west of the station, on
+a clear day. Data: 3D City Model (Tokyo 23 wards) 2020, Project PLATEAU /
+MLIT, used under the PLATEAU site policy (compatible with CC BY 4.0); these
+renders are derived from it.*
+
+## The comparison
+
+The rest of this repository compares the ways of combining GNSS and a LiDAR
+map in a small simulated district where every method sees the same drive
+and the same noise:
+
 ![Six localizers driving the same route through a crowded street canyon](docs/media/methods_crowd.gif)
 
 *Six localizers on the same drive through a crowded district (600 people).
@@ -23,7 +51,7 @@ on. The strip under each panel is the run's source timeline: every colour
 change is a change of source. The switching arbiter trades GNSS and LiDAR back
 and forth; the LiDAR-primary arbiter takes LiDAR once and keeps it.*
 
-## The district
+### The district
 
 ![The district from above: building heights and the GNSS solution along the route](docs/media/overview.gif)
 
@@ -58,7 +86,7 @@ across it. Wheel odometry has about 1 % scale error and a calibrated MEMS
 gyro's bias (about 100 deg/h). The robot drives the route by pure pursuit at
 1.2 m/s; every method sees the same drive and the same noise.
 
-## The methods
+### The methods
 
 | Method | GNSS | LiDAR map | How they combine (`methods`) |
 |---|:---:|:---:|---|
@@ -69,7 +97,7 @@ gyro's bias (about 100 deg/h). The robot drives the route by pure pursuit at
 | loose EKF | ✓ | ✓ | every gated fix and match into one EKF, nothing switched |
 | factor graph | ✓ | ✓ | 8 s sliding window, a node per scan: odometry between nodes, Huber-weighted LiDAR matches with their covariance, Cauchy-weighted GNSS fixes; float and single fixes join only within 3 sigma; for 3 s after an RTK fixed fix carried weight, a match more than 0.3 m from the graph is left out |
 
-## Results (`cargo run --release --example compare -- 5`)
+### Results (`cargo run --release --example compare -- 5`)
 
 Median over 5 seeds (worst seed in brackets). *Hand-overs* counts changes of
 the source in charge, for the two arbiters; the fusing methods do not hand
