@@ -47,7 +47,7 @@ corner shows the robot's track in yellow and that localizer's in red.
 
 | Case | With GNSS: RMSE (max) | Without GNSS: RMSE (max) |
 |---|---|---|
-| Open ground: 500 m of fields between two rows of houses (synthetic) | 0.00 m (0.15 m) | 87 m (234 m) |
+| Open ground: 500 m of rice paddies and fields between two rows of houses (synthetic) | 0.01 m (0.28 m) | 87 m (235 m) |
 | Shibuya, switched on 25 m from where it thinks | 0.60 m (25 m, the first second) | 61 m (109 m) |
 | Shinjuku Central Park | 0.17 m (3.0 m) | 2.1 m (10.5 m) |
 | Shibuya, a 140 m spur not in the LiDAR map | 0.10 m (1.6 m) | 1.06 m (5.4 m) |
@@ -59,7 +59,7 @@ too rarely to carry it far without the map. GNSS carries the robot where
 the sky is open and the map has nothing to hold, and tells it where it is
 at the start.
 
-![Open ground: GNSS takes charge across 500 m of fields where the LiDAR sees only the ground; the localizer without GNSS drifts 230 m off](docs/media/rne-suburb.gif)
+![Open ground: GNSS takes charge across 500 m of fields where the LiDAR sees only the ground; the localizer without GNSS drifts 235 m off](docs/media/rne-suburb.gif)
 
 ![Unknown start in Shibuya: the localizer without GNSS never finds itself, up to 109 m off](docs/media/rne-plateau-shibuya-unknown-start.gif)
 
