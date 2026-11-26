@@ -1,0 +1,26 @@
+[package]
+name = "robo-localization"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "GNSS / LiDAR / odometry localization methods compared in a simulated street canyon: gated EKFs, a switching arbiter, LiDAR-primary fusion and a sliding-window factor graph."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rsasaki0109/robot-localization"
+
+[lib]
+name = "robo_localization"
+
+[dependencies]
+robo-planning = { git = "https://github.com/rsasaki0109/robot-planning", optional = true, features = ["render"] }
+
+[profile.release]
+debug = false
+
+[features]
+default = []
+# Raster rendering and animated GIF output (robo-planning's renderer).
+render = ["dep:robo-planning"]
+
+[[example]]
+name = "gallery"
+required-features = ["render"]

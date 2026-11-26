@@ -1,0 +1,20 @@
+[submodule "third_party/visloc-rs"]
+	path = third_party/visloc-rs
+	url = https://github.com/rsasaki0109/visloc-rs.git
+	branch = main
+	shallow = true
+[submodule "third_party/lidar_slam"]
+	path = third_party/lidar_slam
+	url = https://github.com/rsasaki0109/lidar_slam.git
+	branch = develop
+	shallow = true
+[submodule "third_party/lidar_localization_ros2"]
+	path = third_party/lidar_localization_ros2
+	url = https://github.com/rsasaki0109/lidar_localization_ros2.git
+	branch = main
+	shallow = true
+[submodule "third_party/gnssplusplus-library"]
+	path = third_party/gnssplusplus-library
+	url = https://github.com/rsasaki0109/gnssplusplus-library.git
+	branch = develop
+	shallow = true
